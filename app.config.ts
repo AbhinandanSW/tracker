@@ -1,55 +1,58 @@
-import type { ExpoConfig } from 'expo/config';
+import type { ExpoConfig } from "expo/config";
 
-const repoName = process.env.GITHUB_REPOSITORY?.split('/')[1];
-const baseUrl = process.env.EXPO_BASE_URL ?? (process.env.GITHUB_ACTIONS && repoName ? `/${repoName}` : '');
+const repoName = process.env.GITHUB_REPOSITORY?.split("/")[1];
+const baseUrl =
+  process.env.EXPO_BASE_URL ??
+  (process.env.GITHUB_ACTIONS && repoName ? `/${repoName}` : "");
 
 const config: ExpoConfig = {
-  name: 'Job Hunt',
-  slug: 'job-hunt',
-  version: '1.0.0',
-  orientation: 'portrait',
-  icon: './assets/images/icon.png',
-  scheme: 'jobhunt',
-  userInterfaceStyle: 'automatic',
-  backgroundColor: '#F7F5F0',
+  name: "Job Hunt",
+  slug: "tracker",
+  version: "1.0.0",
+  orientation: "portrait",
+  icon: "./assets/images/icon.png",
+  scheme: "jobhunt",
+  userInterfaceStyle: "automatic",
+  backgroundColor: "#F7F5F0",
   ios: {
     supportsTablet: true,
-    bundleIdentifier: 'com.abhinandansw.jobhunt',
+    bundleIdentifier: "com.abhinandansw.jobhunt",
     config: {
       usesNonExemptEncryption: false,
     },
   },
   android: {
-    package: 'com.abhinandansw.jobhunt',
+    package: "com.abhinandansw.jobhunt",
     adaptiveIcon: {
-      backgroundColor: '#101114',
-      foregroundImage: './assets/images/android-icon-foreground.png',
-      monochromeImage: './assets/images/android-icon-monochrome.png',
+      backgroundColor: "#101114",
+      foregroundImage: "./assets/images/android-icon-foreground.png",
+      monochromeImage: "./assets/images/android-icon-monochrome.png",
     },
     predictiveBackGestureEnabled: false,
   },
   web: {
-    output: 'single',
-    favicon: './assets/images/favicon.png',
-    name: 'Job Hunt',
-    shortName: 'Job Hunt',
-    description: 'A personal job feed, application pipeline, and AI application assistant.',
-    themeColor: '#4F46E5',
-    backgroundColor: '#F7F5F0',
-    display: 'standalone',
-    startUrl: '.',
+    output: "single",
+    favicon: "./assets/images/favicon.png",
+    name: "Job Hunt",
+    shortName: "Job Hunt",
+    description:
+      "A personal job feed, application pipeline, and AI application assistant.",
+    themeColor: "#4F46E5",
+    backgroundColor: "#F7F5F0",
+    display: "standalone",
+    startUrl: ".",
   },
   plugins: [
-    'expo-router',
+    "expo-router",
     [
-      'expo-splash-screen',
+      "expo-splash-screen",
       {
-        backgroundColor: '#101114',
-        image: './assets/images/splash-icon.png',
+        backgroundColor: "#101114",
+        image: "./assets/images/splash-icon.png",
         imageWidth: 96,
       },
     ],
-    'expo-secure-store',
+    "expo-secure-store",
   ],
   experiments: {
     typedRoutes: true,
@@ -58,7 +61,11 @@ const config: ExpoConfig = {
   },
   extra: {
     jobsUrl:
-      process.env.EXPO_PUBLIC_JOBS_URL || 'https://abhinandansw.github.io/job_board/jobs.json',
+      process.env.EXPO_PUBLIC_JOBS_URL ||
+      "https://abhinandansw.github.io/job_board/jobs.json",
+    eas: {
+      projectId: "fb95a7c3-d511-4c74-b6a7-d57d22b7af58",
+    },
   },
 };
 
