@@ -79,7 +79,34 @@ set the repository variable `JOBS_URL`.
 
 For a custom domain, set `EXPO_BASE_URL` explicitly in the workflow.
 
-### 4. Mobile builds
+### 4. Vercel
+
+The web app can also be hosted on Vercel. `vercel.json` sets the build command,
+output directory, and the SPA rewrite required by `web.output: "single"`.
+
+1. Push this repo to GitHub.
+2. Import it at [vercel.com/new](https://vercel.com/new).
+3. Confirm the settings from `vercel.json`:
+   - **Install Command** — `npm ci`
+   - **Build Command** — `npm run build:web`
+   - **Output Directory** — `dist`
+   - **Node.js Version** — `24.x` (Vercel default; `engines` requires `>=22.13.0`)
+4. Do **not** set `EXPO_BASE_URL`; it is only needed for a GitHub Pages subpath.
+5. Deploy.
+
+Or deploy from the CLI:
+
+```bash
+npx vercel@latest
+npx vercel@latest --prod
+```
+
+The feed still comes from
+`https://abhinandansw.github.io/job_board/jobs.json` unless
+`EXPO_PUBLIC_JOBS_URL` is set. GitHub Pages allows cross-origin reads, so the
+Vercel app can fetch it directly.
+
+### 5. Mobile builds
 
 The app uses `expo-secure-store`, so Expo Go is not enough for a production
 build. Use a development build or EAS:
