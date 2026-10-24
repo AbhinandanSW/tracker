@@ -1,56 +1,142 @@
-# Welcome to your Expo app 👋
+# Job Hunt
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A personal job-hunting workspace for iOS, Android and the web. It reads the
+openings published by [`AbhinandanSW/job_board`](https://github.com/AbhinandanSW/job_board),
+keeps an application pipeline, and drafts tailored cover letters with an
+OpenAI-compatible model.
 
-## Get started
+The web build replaces the old GitHub Pages dashboard and deploys to Pages from
+this repository.
 
-1. Install dependencies
+## What it does
 
-   ```bash
-   npm install
-   ```
+- **Job feed** — `jobs.json` (matched roles) and `others.json` (everything else)
+  with search, role/location/mode filters, saved/applied/hidden tabs, and a
+  cached copy for offline use.
+- **Application tracker** — saved, applied, interview, offer, rejected and
+  hidden stages, notes, follow-up dates, and a timeline per application.
+- **Quick apply** — opens the posting, marks it applied, and copies your contact
+  block in one tap. It does not submit forms for you: generic auto-submit breaks
+  most job-board terms and is easy to detect. Undo is always one tap away.
+- **AI writing help** — cover letters and resume bullets generated from your
+  profile and the posting. Drafts are editable, saved to the application, and
+  never invented from thin air (the prompt forbids fabricating experience).
+- **Private sync** — application state and profile live in one JSON file in a
+  private repository. Every device merges per record by `updatedAt`, so offline
+  edits reconcile cleanly.
+- **Light and dark** — follow the system or lock either theme from Settings, with
+  a quick toggle in the web header.
 
-2. Start the app
+## Stack
 
-   ```bash
-   npx expo start
-   ```
+- Expo SDK 58 / React Native 0.88, Expo Router
+- `expo-secure-store` on native, `localStorage` on web for the PAT and AI key
+- AsyncStorage for settings, the shared state cache, and the job feed cache
+- GitHub Contents API for sync; GitHub Actions dispatch API for the scraper
+- Static export (`web.output: "single"`) deployed to GitHub Pages
 
-In the output, you'll find options to open the app in a
+## Setup
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### 1. Data repository
 
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+Create a private repository for sync, for example
+`AbhinandanSW/job-hunt-data`. The app writes `state.json` there. Nothing else is
+required in the repo.
 
-## Get a fresh project
+Create a **fine-grained personal access token**:
 
-When you're ready, run:
+- Repository access: only the data repository
+- Permissions: **Contents → Read and write**
+- Optional, only for the "Run job scan" button: add `job_board` and grant
+  **Actions → Read and write**
+
+Paste the token in **Settings → GitHub sync**. It stays on the device and is
+never bundled into the web build.
+
+### 2. Run locally
+
+Node **22.13 or newer** is required by SDK 58.
 
 ```bash
-npm run reset-project
+npm install
+npx expo start
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+- `w` opens the web build
+- `a` opens Android (development build or emulator)
+- `i` opens iOS (macOS only)
 
-### Other setup steps
+### 3. Web deployment
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+1. Push this repo to GitHub (`main` branch).
+2. In **Settings → Pages**, set the source to **GitHub Actions**.
+3. Run the **Deploy web** workflow, or push to `main`.
 
-## Learn more
+The workflow exports the app, copies `index.html` to `404.html` so client-side
+routes survive a refresh, and deploys `dist/`. The base URL is derived from the
+repository name (`https://<user>.github.io/<repo>/`). To use a different feed,
+set the repository variable `JOBS_URL`.
 
-To learn more about developing your project with Expo, look at the following resources:
+For a custom domain, set `EXPO_BASE_URL` explicitly in the workflow.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### 4. Mobile builds
 
-## Join the community
+The app uses `expo-secure-store`, so Expo Go is not enough for a production
+build. Use a development build or EAS:
 
-Join our community of developers creating universal apps.
+```bash
+npx expo run:android
+npx expo run:ios
+# or
+npx eas-cli build --profile development
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Configuration
+
+Everything is edited in the app's **Settings** screen:
+
+| Setting | Purpose |
+| --- | --- |
+| Profile | Contact block, headline, experience, links, resume text for AI |
+| GitHub sync | Data repo owner/name/branch/path and PAT |
+| AI assistant | Base URL (e.g. `https://api.openai.com/v1`), model, API key |
+| Job feed | `jobs.json` URL; `others.json` is derived automatically |
+| Scraper automation | Repo/workflow used by "Run job scan" |
+
+### AI provider
+
+Any endpoint that implements `POST {baseUrl}/chat/completions` with the OpenAI
+request shape works — OpenAI, OpenRouter, Groq, a local gateway, and so on. The
+key and generated text are sent only to that provider.
+
+## Privacy
+
+- The web app stores tokens in the browser's `localStorage`. Use a scoped token
+  and avoid shared computers.
+- Native builds use the OS keychain/keystore via `expo-secure-store`.
+- Application state is stored in your private repo, not on a server owned by
+  this project.
+- No analytics, accounts or telemetry.
+
+## Scripts
+
+```bash
+npm run start       # Expo dev server
+npm run web         # web dev server
+npm run typecheck   # tsc --noEmit
+npm run lint        # expo lint
+npm run build:web   # static web export to dist/
+```
+
+## Project layout
+
+```
+src/app/(tabs)/index.tsx     Job feed
+src/app/(tabs)/tracker.tsx   Application pipeline
+src/app/(tabs)/settings.tsx  Settings
+src/app/job/[id].tsx         Job detail, notes, AI drafts
+src/components/              UI primitives and feature components
+src/providers/               Settings, jobs, applications, toasts
+src/lib/                     GitHub sync, AI, filtering, formatting
+.github/workflows/deploy-web.yml
+```
