@@ -121,10 +121,8 @@ export type AiSettings = {
 export type ThemeMode = 'system' | 'light' | 'dark';
 
 export type Settings = {
-  jobsUrl: string;
   themeMode: ThemeMode;
   sync: SyncSettings;
-  actions: ActionSettings;
   ai: AiSettings;
 };
 

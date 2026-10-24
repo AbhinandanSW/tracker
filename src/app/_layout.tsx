@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
+import { LegacyImport } from '@/components/legacy-import';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AppearanceProvider } from '@/providers/appearance-provider';
@@ -68,6 +69,7 @@ function ThemedRoot() {
       <ToastProvider>
         <ApplicationsProvider>
           <JobsProvider>
+            <LegacyImport />
             <StatusBar style={dark ? 'light' : 'dark'} />
             <Stack
               screenOptions={{

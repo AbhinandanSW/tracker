@@ -1,26 +1,26 @@
-import Constants from 'expo-constants';
+import type { ActionSettings, Settings } from '@/types';
 
-import type { Settings } from '@/types';
+/**
+ * The feed is published by the job_board Actions workflow. Both files are
+ * plain JSON on GitHub Pages, so the app can read them directly.
+ */
+export const JOBS_URL = 'https://abhinandansw.github.io/job_board/jobs.json';
 
-export const FALLBACK_JOBS_URL = 'https://abhinandansw.github.io/job_board/jobs.json';
-
-const configuredJobsUrl =
-  (Constants.expoConfig?.extra as { jobsUrl?: string } | undefined)?.jobsUrl || FALLBACK_JOBS_URL;
+/** The workflow that refreshes JOBS_URL. Read-only in the app. */
+export const JOB_BOARD_ACTIONS: ActionSettings = {
+  owner: 'AbhinandanSW',
+  repo: 'job_board',
+  workflow: 'job-tracker.yml',
+  branch: 'main',
+};
 
 export const DEFAULT_SETTINGS: Settings = {
-  jobsUrl: configuredJobsUrl,
   themeMode: 'system',
   sync: {
     owner: 'AbhinandanSW',
     repo: 'job-hunt-data',
     branch: 'main',
     path: 'state.json',
-  },
-  actions: {
-    owner: 'AbhinandanSW',
-    repo: 'job_board',
-    workflow: 'job-tracker.yml',
-    branch: 'main',
   },
   ai: {
     baseUrl: 'https://api.openai.com/v1',
@@ -35,7 +35,6 @@ function clean(value: unknown, fallback: string): string {
 export function mergeSettings(saved: Partial<Settings> | null | undefined): Settings {
   if (!saved) return DEFAULT_SETTINGS;
   return {
-    jobsUrl: clean(saved.jobsUrl, DEFAULT_SETTINGS.jobsUrl) || DEFAULT_SETTINGS.jobsUrl,
     themeMode:
       saved.themeMode === 'light' || saved.themeMode === 'dark' || saved.themeMode === 'system'
         ? saved.themeMode
@@ -45,13 +44,6 @@ export function mergeSettings(saved: Partial<Settings> | null | undefined): Sett
       repo: clean(saved.sync?.repo, DEFAULT_SETTINGS.sync.repo),
       branch: clean(saved.sync?.branch, DEFAULT_SETTINGS.sync.branch) || 'main',
       path: clean(saved.sync?.path, DEFAULT_SETTINGS.sync.path) || 'state.json',
-    },
-    actions: {
-      owner: clean(saved.actions?.owner, DEFAULT_SETTINGS.actions.owner),
-      repo: clean(saved.actions?.repo, DEFAULT_SETTINGS.actions.repo),
-      workflow:
-        clean(saved.actions?.workflow, DEFAULT_SETTINGS.actions.workflow) || 'job-tracker.yml',
-      branch: clean(saved.actions?.branch, DEFAULT_SETTINGS.actions.branch) || 'main',
     },
     ai: {
       baseUrl: clean(saved.ai?.baseUrl, DEFAULT_SETTINGS.ai.baseUrl) || DEFAULT_SETTINGS.ai.baseUrl,

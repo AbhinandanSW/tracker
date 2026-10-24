@@ -26,6 +26,9 @@ this repository.
   edits reconcile cleanly.
 - **Light and dark** — follow the system or lock either theme from Settings, with
   a quick toggle in the web header.
+- **Old dashboard import** — bring the previous job_board Saved / Applied / Hidden
+  flags into the tracker once, automatically on GitHub Pages or by pasting the
+  JSON in Settings.
 
 ## Stack
 
@@ -74,8 +77,7 @@ npx expo start
 
 The workflow exports the app, copies `index.html` to `404.html` so client-side
 routes survive a refresh, and deploys `dist/`. The base URL is derived from the
-repository name (`https://<user>.github.io/<repo>/`). To use a different feed,
-set the repository variable `JOBS_URL`.
+repository name (`https://<user>.github.io/<repo>/`).
 
 For a custom domain, set `EXPO_BASE_URL` explicitly in the workflow.
 
@@ -101,10 +103,10 @@ npx vercel@latest
 npx vercel@latest --prod
 ```
 
-The feed still comes from
-`https://abhinandansw.github.io/job_board/jobs.json` unless
-`EXPO_PUBLIC_JOBS_URL` is set. GitHub Pages allows cross-origin reads, so the
-Vercel app can fetch it directly.
+The feed comes directly from
+`https://abhinandansw.github.io/job_board/jobs.json`, with `others.json` read
+alongside it. GitHub Pages allows cross-origin reads, so the Vercel app can
+fetch both files without a proxy or environment variable.
 
 ### 5. Mobile builds
 
@@ -127,14 +129,39 @@ Everything is edited in the app's **Settings** screen:
 | Profile | Contact block, headline, experience, links, resume text for AI |
 | GitHub sync | Data repo owner/name/branch/path and PAT |
 | AI assistant | Base URL (e.g. `https://api.openai.com/v1`), model, API key |
-| Job feed | `jobs.json` URL; `others.json` is derived automatically |
-| Scraper automation | Repo/workflow used by "Run job scan" |
+| Feed & automation | Read-only source info, refresh, and the "Run job scan" button |
+
+The feed location is fixed in `src/lib/settings.ts` (`JOBS_URL`). The app reads
+`jobs.json` directly and derives `others.json` from the same URL.
 
 ### AI provider
 
 Any endpoint that implements `POST {baseUrl}/chat/completions` with the OpenAI
 request shape works — OpenAI, OpenRouter, Groq, a local gateway, and so on. The
 key and generated text are sent only to that provider.
+
+## Importing the old dashboard
+
+The previous GitHub Pages dashboard stored its Saved / Applied / Hidden flags in
+the browser, not in the repository:
+
+```js
+localStorage["jobstatus:v1"]
+```
+
+When this app is served from `https://abhinandansw.github.io/tracker/`, it shares
+an origin with the old dashboard and imports those flags automatically on first
+load. Existing tracker records are never overwritten.
+
+On Vercel (or another origin), open the old dashboard, run this in the browser
+console, copy the result, and paste it into **Settings → Old dashboard → Import**:
+
+```js
+copy(localStorage.getItem("jobstatus:v1"))
+```
+
+The import keeps `saved`, `applied`, and `hidden`. Openings that have already left
+the feed are still kept, with the original id as a fallback title.
 
 ## Privacy
 

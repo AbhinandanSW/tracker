@@ -60,9 +60,6 @@ const config: ExpoConfig = {
     baseUrl,
   },
   extra: {
-    jobsUrl:
-      process.env.EXPO_PUBLIC_JOBS_URL ||
-      "https://abhinandansw.github.io/job_board/jobs.json",
     eas: {
       projectId: "fb95a7c3-d511-4c74-b6a7-d57d22b7af58",
     },

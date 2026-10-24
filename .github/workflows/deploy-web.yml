@@ -33,7 +33,6 @@ jobs:
       - name: Export web build
         env:
           EXPO_BASE_URL: /${{ github.event.repository.name }}
-          EXPO_PUBLIC_JOBS_URL: ${{ vars.JOBS_URL || 'https://abhinandansw.github.io/job_board/jobs.json' }}
         run: npx expo export --platform web
 
       - name: Add SPA fallback

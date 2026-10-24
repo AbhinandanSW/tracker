@@ -12,9 +12,8 @@ import { AppState } from 'react-native';
 
 import { toDayKey } from '@/lib/format';
 import { sortJobs } from '@/lib/job-filter';
-import { othersUrlFrom } from '@/lib/settings';
+import { JOBS_URL, othersUrlFrom } from '@/lib/settings';
 import { StorageKeys, loadJson, saveJson } from '@/lib/storage';
-import { useSettings } from '@/providers/settings-provider';
 import type { Job, JobFeed, JobSearchLink } from '@/types';
 
 type JobsStatus = 'idle' | 'loading' | 'refreshing' | 'error';
@@ -77,7 +76,6 @@ async function fetchJson(url: string): Promise<unknown> {
 }
 
 export function JobsProvider({ children }: { children: ReactNode }) {
-  const { settings, hydrated: settingsHydrated } = useSettings();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [links, setLinks] = useState<JobSearchLink[]>([]);
   const [updated, setUpdated] = useState<string | null>(null);
@@ -88,7 +86,6 @@ export function JobsProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
 
   const inFlightRef = useRef(false);
-  const lastUrlRef = useRef(settings.jobsUrl);
   const jobsRef = useRef<Job[]>([]);
   const cacheLoadedRef = useRef(false);
 
@@ -104,10 +101,10 @@ export function JobsProvider({ children }: { children: ReactNode }) {
 
     const today = toDayKey();
     try {
-      const matchedFeed = (await fetchJson(settings.jobsUrl)) as JobFeed;
+      const matchedFeed = (await fetchJson(JOBS_URL)) as JobFeed;
       let generalFeed: JobFeed | null = null;
       try {
-        generalFeed = (await fetchJson(othersUrlFrom(settings.jobsUrl))) as JobFeed;
+        generalFeed = (await fetchJson(othersUrlFrom(JOBS_URL))) as JobFeed;
       } catch {
         // The general feed is optional; a missing others.json should not block the main feed.
       }
@@ -146,11 +143,11 @@ export function JobsProvider({ children }: { children: ReactNode }) {
     } finally {
       inFlightRef.current = false;
     }
-  }, [settings.jobsUrl]);
+  }, []);
 
   // Restore the cached feed, then fetch if it is stale or missing.
   useEffect(() => {
-    if (!settingsHydrated || cacheLoadedRef.current) return;
+    if (cacheLoadedRef.current) return;
     cacheLoadedRef.current = true;
     let alive = true;
     loadJson<JobsCache | null>(StorageKeys.jobsCache, null).then((cache) => {
@@ -172,22 +169,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
     return () => {
       alive = false;
     };
-    // refresh is stable for a given URL.
-  }, [refresh, settingsHydrated]);
-
-  // A changed feed URL should replace the cached feed.
-  useEffect(() => {
-    if (!settingsHydrated) return;
-    if (lastUrlRef.current === settings.jobsUrl) return;
-    lastUrlRef.current = settings.jobsUrl;
-    jobsRef.current = [];
-    setJobs([]);
-    setLinks([]);
-    setUpdated(null);
-    setFetchedAt(null);
-    setFromCache(false);
-    void refresh();
-  }, [refresh, settings.jobsUrl, settingsHydrated]);
+  }, [refresh]);
 
   // Keep the feed reasonably fresh while the app stays open.
   useEffect(() => {

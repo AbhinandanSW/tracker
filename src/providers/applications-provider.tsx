@@ -44,6 +44,9 @@ type ApplicationsContextValue = {
   setStatus: (job: Job, status: JobStatus, extra?: Partial<ApplicationRecord>) => void;
   updateRecord: (job: Job | JobSnapshot, patch: Partial<ApplicationRecord>) => void;
   resetRecord: (job: Job | JobSnapshot) => void;
+  importRecords: (
+    records: Record<string, ApplicationRecord>,
+  ) => { imported: number; skipped: number };
   updateProfile: (patch: Partial<Profile>) => void;
   syncNow: () => Promise<void>;
 };
@@ -290,6 +293,36 @@ export function ApplicationsProvider({ children }: { children: ReactNode }) {
     [commit],
   );
 
+  /** Add records from the old dashboard, never replacing an existing entry. */
+  const importRecords = useCallback(
+    (records: Record<string, ApplicationRecord>) => {
+      const current = stateRef.current;
+      const nextRecords = { ...current.records };
+      let imported = 0;
+      let skipped = 0;
+
+      for (const [id, record] of Object.entries(records)) {
+        if (nextRecords[id]) {
+          skipped += 1;
+          continue;
+        }
+        nextRecords[id] = record;
+        imported += 1;
+      }
+
+      if (!imported) return { imported, skipped };
+
+      const now = new Date().toISOString();
+      const next = { ...current, updatedAt: now, records: nextRecords };
+      stateRef.current = next;
+      setState(next);
+      markDirty();
+      schedulePush();
+      return { imported, skipped };
+    },
+    [markDirty, schedulePush],
+  );
+
   const updateProfile = useCallback(
     (patch: Partial<Profile>) => {
       commit((current) => {
@@ -329,6 +362,7 @@ export function ApplicationsProvider({ children }: { children: ReactNode }) {
       setStatus,
       updateRecord,
       resetRecord,
+      importRecords,
       updateProfile,
       syncNow,
     }),
@@ -344,6 +378,7 @@ export function ApplicationsProvider({ children }: { children: ReactNode }) {
       setStatus,
       updateRecord,
       resetRecord,
+      importRecords,
       updateProfile,
       syncNow,
     ],

@@ -16,15 +16,17 @@ import { useTheme } from '@/hooks/use-theme';
 import { testAiConnection } from '@/lib/ai';
 import { checkRepo, dispatchWorkflow, repoUrl } from '@/lib/github';
 import { formatDateTime, relativeTime } from '@/lib/format';
+import { parseLegacyStatuses, recordsFromLegacyStatuses } from '@/lib/legacy-tracker';
 import { openExternal } from '@/lib/open-url';
 import { profileCompleteness } from '@/lib/profile';
+import { JOB_BOARD_ACTIONS, JOBS_URL } from '@/lib/settings';
 import { useApplications } from '@/providers/applications-provider';
 import { useJobs } from '@/providers/jobs-provider';
 import { useSettings } from '@/providers/settings-provider';
 import { useToast } from '@/providers/toast-provider';
 import type { ProfileLink, ThemeMode } from '@/types';
 
-type SectionKey = 'profile' | 'sync' | 'ai' | 'feed' | 'actions' | 'about';
+type SectionKey = 'profile' | 'sync' | 'ai' | 'maintenance' | 'legacy' | 'about';
 
 const THEME_OPTIONS: { key: ThemeMode; label: string }[] = [
   { key: 'system', label: 'Auto' },
@@ -36,8 +38,8 @@ const INITIAL_OPEN: Record<SectionKey, boolean> = {
   profile: false,
   sync: false,
   ai: false,
-  feed: false,
-  actions: false,
+  maintenance: false,
+  legacy: false,
   about: false,
 };
 
@@ -45,8 +47,16 @@ export default function SettingsScreen() {
   const theme = useTheme();
   const { settings, secrets, setGithubToken, setAiApiKey, clearGithubToken, clearAiApiKey, updateSettings } =
     useSettings();
-  const { sharedState, updateProfile, syncStatus, lastSyncedAt, syncError, dirty, syncNow } =
-    useApplications();
+  const {
+    sharedState,
+    updateProfile,
+    importRecords,
+    syncStatus,
+    lastSyncedAt,
+    syncError,
+    dirty,
+    syncNow,
+  } = useApplications();
   const { jobs, updated, fetchedAt, fromCache, refresh, status } = useJobs();
   const { showToast } = useToast();
 
@@ -55,7 +65,7 @@ export default function SettingsScreen() {
 
   const [tokenDraft, setTokenDraft] = useState<string | null>(null);
   const [aiKeyDraft, setAiKeyDraft] = useState<string | null>(null);
-  const [feedDraft, setFeedDraft] = useState<string | null>(null);
+  const [legacyDraft, setLegacyDraft] = useState('');
   const [repoCheck, setRepoCheck] = useState<{ ok: boolean; message: string } | null>(null);
   const [testingRepo, setTestingRepo] = useState(false);
   const [testingAi, setTestingAi] = useState(false);
@@ -64,7 +74,6 @@ export default function SettingsScreen() {
 
   const token = tokenDraft ?? secrets.githubToken;
   const aiKey = aiKeyDraft ?? secrets.aiApiKey;
-  const feedUrl = feedDraft ?? settings.jobsUrl;
 
   const tokenDirty = token.trim() !== secrets.githubToken;
   const aiKeyDirty = aiKey.trim() !== secrets.aiApiKey;
@@ -136,7 +145,7 @@ export default function SettingsScreen() {
     }
     setDispatching(true);
     try {
-      await dispatchWorkflow(settings.actions, secrets.githubToken);
+      await dispatchWorkflow(JOB_BOARD_ACTIONS, secrets.githubToken);
       showToast({ message: 'Job scan started on GitHub Actions.', tone: 'success' });
     } catch (error) {
       showToast({
@@ -148,15 +157,36 @@ export default function SettingsScreen() {
     }
   };
 
-  const applyFeedUrl = () => {
-    const clean = feedUrl.trim();
-    if (!/^https?:\/\//i.test(clean)) {
-      showToast({ message: 'Enter a full https:// URL to jobs.json.', tone: 'error' });
+  const importLegacy = () => {
+    const statuses = parseLegacyStatuses(legacyDraft);
+    if (!statuses) {
+      showToast({
+        message: 'Paste the JSON from localStorage["jobstatus:v1"].',
+        tone: 'error',
+      });
       return;
     }
-    updateSettings((current) => ({ ...current, jobsUrl: clean }));
-    setFeedDraft(null);
-    showToast({ message: 'Feed URL saved. Refreshing…', tone: 'success' });
+
+    const { records } = recordsFromLegacyStatuses(statuses, jobs, sharedState.records);
+    const result = importRecords(records);
+
+    if (!result.imported) {
+      showToast({
+        message: result.skipped
+          ? 'Those jobs are already in your tracker.'
+          : 'No saved, applied or hidden jobs found.',
+        tone: result.skipped ? 'default' : 'error',
+      });
+      return;
+    }
+
+    setLegacyDraft('');
+    showToast({
+      message: `Imported ${result.imported} job${result.imported === 1 ? '' : 's'}${
+        result.skipped ? ` · ${result.skipped} already tracked` : ''
+      }.`,
+      tone: 'success',
+    });
   };
 
   const setLink = (index: number, patch: Partial<ProfileLink>) => {
@@ -666,11 +696,11 @@ export default function SettingsScreen() {
 
         <CollapsibleSection
           icon={icons.jobs}
-          title="Job feed"
+          title="Feed & automation"
           summary={`${jobs.length} jobs · ${updated ? `updated ${relativeTime(updated)}` : 'not fetched yet'}`}
-          description="The GitHub Actions scraper publishes jobs.json and others.json to GitHub Pages. Point the app at your fork if you run your own scraper."
-          expanded={open.feed}
-          onToggle={() => toggle('feed')}
+          description="Openings come straight from job_board's jobs.json and others.json. There is nothing to configure here."
+          expanded={open.maintenance}
+          onToggle={() => toggle('maintenance')}
           right={
             <Badge
               label={fromCache ? 'Cached' : 'Live'}
@@ -678,28 +708,39 @@ export default function SettingsScreen() {
               bg={fromCache ? 'surfaceAlt' : 'successSoft'}
             />
           }>
-          <Field
-            label="jobs.json URL"
-            value={feedUrl}
-            onChangeText={setFeedDraft}
-            placeholder="https://abhinandansw.github.io/job_board/jobs.json"
-            keyboardType="url"
-          />
           <View style={styles.buttonRow}>
-            <Button size="sm" variant="primary" label="Save URL" onPress={applyFeedUrl} />
             <Button
               size="sm"
-              variant="secondary"
+              variant="primary"
               label="Refresh feed"
               loading={status === 'refreshing'}
               onPress={() => void refresh()}
-              icon={<Icon name={icons.refresh} size={14} color={theme.text} />}
+              icon={<Icon name={icons.refresh} size={14} color={theme.accentText} />}
+            />
+            <Button
+              size="sm"
+              variant="secondary"
+              label="Open jobs.json"
+              onPress={() => openExternal(JOBS_URL)}
+              iconRight={<Icon name={icons.external} size={13} color={theme.text} />}
+            />
+            <Button
+              size="sm"
+              variant="secondary"
+              label="Run job scan"
+              loading={dispatching}
+              onPress={() => void runScan()}
+              icon={<Icon name={icons.play} size={14} color={theme.text} />}
             />
             <Button
               size="sm"
               variant="ghost"
-              label="Open dashboard"
-              onPress={() => openExternal(settings.jobsUrl)}
+              label="Open Actions"
+              onPress={() =>
+                openExternal(
+                  `https://github.com/${JOB_BOARD_ACTIONS.owner}/${JOB_BOARD_ACTIONS.repo}/actions/workflows/${JOB_BOARD_ACTIONS.workflow}`,
+                )
+              }
               iconRight={<Icon name={icons.external} size={13} color={theme.textSecondary} />}
             />
           </View>
@@ -708,82 +749,50 @@ export default function SettingsScreen() {
             {fetchedAt ? `Fetched ${formatDateTime(fetchedAt)}` : 'Not fetched yet'}
             {fromCache ? ' · cached copy' : ''}
           </ThemedText>
+          <ThemedText type="caption" themeColor="textTertiary">
+            Run job scan needs a GitHub token with Actions: write on{' '}
+            {JOB_BOARD_ACTIONS.owner}/{JOB_BOARD_ACTIONS.repo}.
+          </ThemedText>
         </CollapsibleSection>
 
         <CollapsibleSection
-          icon={icons.play}
-          title="Scraper automation"
-          summary={`${settings.actions.workflow} on ${settings.actions.repo}`}
-          description="Trigger the job_board workflow without leaving the app. The token needs Actions: write on that repository."
-          expanded={open.actions}
-          onToggle={() => toggle('actions')}>
-          <View style={styles.grid}>
-            <Field
-              label="Owner"
-              value={settings.actions.owner}
-              onChangeText={(owner) =>
-                updateSettings((current) => ({
-                  ...current,
-                  actions: { ...current.actions, owner },
-                }))
-              }
-              containerStyle={styles.gridItem}
-            />
-            <Field
-              label="Repository"
-              value={settings.actions.repo}
-              onChangeText={(repo) =>
-                updateSettings((current) => ({
-                  ...current,
-                  actions: { ...current.actions, repo },
-                }))
-              }
-              containerStyle={styles.gridItem}
-            />
-            <Field
-              label="Workflow file"
-              value={settings.actions.workflow}
-              onChangeText={(workflow) =>
-                updateSettings((current) => ({
-                  ...current,
-                  actions: { ...current.actions, workflow },
-                }))
-              }
-              containerStyle={styles.gridItem}
-            />
-            <Field
-              label="Branch"
-              value={settings.actions.branch}
-              onChangeText={(branch) =>
-                updateSettings((current) => ({
-                  ...current,
-                  actions: { ...current.actions, branch },
-                }))
-              }
-              containerStyle={styles.gridItem}
-            />
-          </View>
+          icon={icons.clock}
+          title="Old dashboard"
+          summary="Import Saved / Applied / Hidden"
+          description="The old GitHub Pages dashboard kept its flags in this browser's localStorage. On GitHub Pages this app imports them automatically; elsewhere, paste them here once."
+          expanded={open.legacy}
+          onToggle={() => toggle('legacy')}>
+          <Field
+            label="jobstatus:v1 JSON"
+            description="Existing tracker entries are never overwritten"
+            value={legacyDraft}
+            onChangeText={setLegacyDraft}
+            placeholder='{"job-id":"saved"}'
+            multiline
+            mono
+            inputStyle={styles.legacyInput}
+          />
           <View style={styles.buttonRow}>
             <Button
               size="sm"
               variant="primary"
-              label="Run job scan"
-              loading={dispatching}
-              onPress={() => void runScan()}
-              icon={<Icon name={icons.play} size={14} color={theme.accentText} />}
+              label="Import old tracker"
+              onPress={importLegacy}
+              disabled={!legacyDraft.trim()}
             />
             <Button
               size="sm"
-              variant="secondary"
-              label="Open Actions"
-              onPress={() =>
-                openExternal(
-                  `https://github.com/${settings.actions.owner}/${settings.actions.repo}/actions/workflows/${settings.actions.workflow}`,
-                )
-              }
-              iconRight={<Icon name={icons.external} size={13} color={theme.text} />}
+              variant="ghost"
+              label="Open old dashboard"
+              onPress={() => openExternal('https://abhinandansw.github.io/job_board/')}
+              iconRight={<Icon name={icons.external} size={13} color={theme.textSecondary} />}
             />
           </View>
+          <ThemedText type="caption" themeColor="textTertiary">
+            To copy it manually, open the old dashboard, run{' '}
+            {'copy(localStorage.getItem("jobstatus:v1"))'} in the browser console, then paste the
+            result above.
+          </ThemedText>
         </CollapsibleSection>
 
         <CollapsibleSection
@@ -932,5 +941,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: Spacing.two,
+  },
+  legacyInput: {
+    minHeight: 108,
   },
 });
